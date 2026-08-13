@@ -1,0 +1,17 @@
+# секреты
+.elevenlabs_key
+.config/
+
+# сгенерированное
+elevenlabs_samples/
+*.apkg
+*.backup
+__pycache__/
+*.pyc
+
+# мусор
+.DS_Store
+add_words.py.bak*
+zidOIvU4
+zil1NGee
+test_import.txt
