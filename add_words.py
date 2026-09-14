@@ -366,7 +366,7 @@ def main():
 
         comment = translit
         if example:
-            comment += "<br><br>" + example
+            comment += "<br>" + example
             if example_ru:
                 comment += "<br>" + example_ru
 
