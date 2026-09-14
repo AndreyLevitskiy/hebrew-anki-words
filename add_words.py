@@ -92,6 +92,8 @@ def transliterate(word):
         marks = []
         while j < n and IS_MARK(chars[j]):
             marks.append(chars[j]); j += 1
+        if ch not in CONS:
+            result.append(ch); at_start = True; i = j; continue
         has_dagesh = DAGESH in marks
         has_sin    = SIN_DOT in marks
         has_shva   = 'ְ' in marks
@@ -99,14 +101,20 @@ def transliterate(word):
         shva_v     = 'е' if (has_shva and at_start) else ''
 
         if ch == 'י' and at_start and has_shva:
-            result.append('е'); at_start = False; i = j; continue
-        if ch == 'ו' and has_dagesh:
+            result.append('йе'); at_start = False; i = j; continue
+        if ch == 'ו' and has_dagesh and not base_v and not has_shva and not (j < n and chars[j] == 'ו'):
             result.append('у'); at_start = False; i = j; continue
         if ch == 'ו' and 'ֹ' in marks:
             result.append('о'); at_start = False; i = j; continue
         if ch == 'י' and not base_v and not has_shva:
             prev = ''.join(result)
-            if prev and prev[-1] in 'аеиоуэ': i = j; continue
+            if prev and prev[-1] == 'и': i = j; continue
+            if prev and prev[-1] in 'аеоуэ':
+                if j >= n or chars[j] not in CONS:
+                    result.append('й'); at_start = False
+                i = j; continue
+        if ch == 'ח' and (j >= n or chars[j] not in CONS) and 'ַ' in marks and result:
+            result.append('ах'); at_start = False; i = j; continue
         if ch == 'ש':
             cons = 'с' if has_sin else 'ш'
         elif has_dagesh and ch in DAGESH_HARD:
@@ -346,6 +354,8 @@ def main():
         sec          = w["section"]
         russian      = w["russian"].strip()
         conjugations = w.get("conjugations", "").strip()  # "זייף – מזייף – יזייף" for verbs
+        example      = w.get("example", "").strip()       # Hebrew sample sentence / idiom
+        example_ru   = w.get("example_ru", "").strip()    # its Russian translation
 
         # "hebrew" = clean form (no nikud) — used for card and JSON storage
         # "hebrew_nikud" = form with vowel marks — used ONLY for audio and transliteration
@@ -353,6 +363,12 @@ def main():
         hclean = w["hebrew"].strip()
         hnikud = w.get("hebrew_nikud", hclean).strip()
         translit = transliterate(hnikud)
+
+        comment = translit
+        if example:
+            comment += "<br><br>" + example
+            if example_ru:
+                comment += "<br>" + example_ru
 
         # Hebrew field in Anki card: infinitive only, or infinitive + blank line + conjugations
         heb_card = hclean + ("\n\n" + conjugations if conjugations else "")
@@ -362,11 +378,16 @@ def main():
         if hclean in existing.get(sec, set()):
             skipped.append(hclean); continue
 
-        db[sec].append({"hebrew": hclean, "russian": russian})
+        rec = {"hebrew": hclean, "russian": russian}
+        if example:
+            rec["example"] = example
+            if example_ru:
+                rec["example_ru"] = example_ru
+        db[sec].append(rec)
         existing.setdefault(sec, set()).add(hclean)
         new_by_section[sec].append({
             "hebrew": hclean, "hebrew_card": heb_card,
-            "hebrew_nikud": hnikud, "russian": russian, "transliteration": translit
+            "hebrew_nikud": hnikud, "russian": russian, "transliteration": comment
         })
         print(f"  + {hclean} ({hnikud}) [{translit}] → {sec}")
 
