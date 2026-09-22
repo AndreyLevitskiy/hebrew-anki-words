@@ -106,11 +106,17 @@ def transliterate(word):
             result.append('у'); at_start = False; i = j; continue
         if ch == 'ו' and 'ֹ' in marks:
             result.append('о'); at_start = False; i = j; continue
+        if ch == 'י' and not base_v and not has_shva and j < n and chars[j] == 'ו':
+            k = j + 1; vm = []
+            while k < n and IS_MARK(chars[k]):
+                vm.append(chars[k]); k += 1
+            if DAGESH in vm and not any(m in VOWEL and VOWEL[m] for m in vm):
+                result.append('ю'); at_start = False; i = k; continue
         if ch == 'י' and not base_v and not has_shva:
             prev = ''.join(result)
             if prev and prev[-1] == 'и': i = j; continue
             if prev and prev[-1] in 'аеоуэ':
-                if j >= n or chars[j] not in CONS:
+                if prev[-1] == 'е' or j >= n or chars[j] not in CONS:
                     result.append('й'); at_start = False
                 i = j; continue
         if ch == 'ח' and (j >= n or chars[j] not in CONS) and 'ַ' in marks and result:
@@ -127,6 +133,10 @@ def transliterate(word):
             result.extend(['э' if (at_start and v == 'е') else v for v in vs])
             if vs: at_start = False
             i = j; continue
+        if ch == 'י' and base_v and not shva_v and result and result[-1].endswith('и'):
+            IOT = {'а': 'я', 'у': 'ю', 'е': 'е', 'о': 'ё'}
+            result.append(IOT.get(base_v[0], base_v[0])); result.extend(base_v[1:])
+            at_start = False; i = j; continue
         result.append(cons)
         if shva_v: result.append(shva_v)
         result.extend(base_v)
@@ -354,6 +364,7 @@ def main():
         sec          = w["section"]
         russian      = w["russian"].strip()
         conjugations = w.get("conjugations", "").strip()  # "זייף – מזייף – יזייף" for verbs
+        governs      = w.get("governs", "").strip()       # preposition, e.g. "(מ...)" — shown next to the infinitive
         example      = w.get("example", "").strip()       # Hebrew sample sentence / idiom
         example_ru   = w.get("example_ru", "").strip()    # its Russian translation
 
@@ -366,12 +377,12 @@ def main():
 
         comment = translit
         if example:
-            comment += "<br>" + example
+            comment += "\n" + example
             if example_ru:
-                comment += "<br>" + example_ru
+                comment += "\n" + example_ru
 
         # Hebrew field in Anki card: infinitive only, or infinitive + blank line + conjugations
-        heb_card = hclean + ("\n\n" + conjugations if conjugations else "")
+        heb_card = hclean + (" " + governs if governs else "") + ("\n\n" + conjugations if conjugations else "")
 
         if sec not in db:
             print(f"  ✗ Неизвестная секция: {sec}", file=sys.stderr); continue
@@ -379,6 +390,8 @@ def main():
             skipped.append(hclean); continue
 
         rec = {"hebrew": hclean, "russian": russian}
+        if governs:
+            rec["governs"] = governs
         if example:
             rec["example"] = example
             if example_ru:
