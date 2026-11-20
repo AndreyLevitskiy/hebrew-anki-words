@@ -15,3 +15,7 @@ add_words.py.bak*
 zidOIvU4
 zil1NGee
 test_import.txt
+
+# бэкапы и временные файлы сборки
+*.backup-*
+conj_pending_*.json

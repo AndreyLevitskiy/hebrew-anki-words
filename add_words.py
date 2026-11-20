@@ -9,7 +9,7 @@ Usage:
 Output: one new_words_<section>.apkg per section that has new words.
 """
 
-import argparse, collections, hashlib, json, os, re, sqlite3, subprocess, sys, tempfile, time, urllib.error, urllib.request, zipfile
+import argparse, collections, hashlib, json, os, re, shutil, sqlite3, subprocess, sys, tempfile, time, urllib.error, urllib.request, zipfile
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 JSON_PATH  = os.path.join(SCRIPT_DIR, "hebrew_words.json")
@@ -171,9 +171,42 @@ def _el_key():
         print(f"  ✗ Нет файла с ключом: {EL_KEY_PATH}", file=sys.stderr)
         return ""
 
+SAY_VOICE      = "Carmit (Enhanced)"   # macOS fallback voice when ElevenLabs is unavailable
+FFMPEG         = shutil.which("ffmpeg") or "/opt/homebrew/bin/ffmpeg"
+_EL_DISABLED   = False                 # set after a quota/auth error: skip ElevenLabs for the rest of the run
+FALLBACK_USED  = []                    # texts voiced by the fallback voice (reported at the end)
+
 def gen_audio(hnikud, fname):
+    """ElevenLabs first; if it fails (quota, network, bad response) fall back to
+    the macOS voice Carmit (Enhanced) so the card is never left without sound."""
+    global _EL_DISABLED
+    if not _EL_DISABLED:
+        mp3 = _gen_audio_el(hnikud, fname)
+        if mp3:
+            return mp3
+    mp3 = _gen_audio_say(hnikud, fname)
+    if mp3:
+        FALLBACK_USED.append(hnikud)
+    return mp3
+
+def _gen_audio_say(hnikud, fname):
+    os.makedirs(AUDIO_DIR, exist_ok=True)
+    aiff = os.path.join(AUDIO_DIR, fname + ".aiff")
+    mp3  = os.path.join(AUDIO_DIR, fname + ".mp3")
+    try:
+        subprocess.run(["say", "-v", SAY_VOICE, "-o", aiff, hnikud], check=True)
+        subprocess.run([FFMPEG, "-y", "-loglevel", "error", "-i", aiff,
+                        "-codec:a", "libmp3lame", "-q:a", "4", mp3], check=True)
+        os.remove(aiff)
+        return mp3
+    except Exception as e:
+        print(f"  ✗ Запасная озвучка (say) не сработала для {hnikud}: {e}", file=sys.stderr)
+        return ""
+
+def _gen_audio_el(hnikud, fname):
     """Generate audio via ElevenLabs. Text is sent WITH nikud, prefixed by the
     [spoken in Hebrew] tag (interpreted as a direction, not read aloud)."""
+    global _EL_DISABLED
     os.makedirs(AUDIO_DIR, exist_ok=True)
     mp3 = os.path.join(AUDIO_DIR, fname + ".mp3")
     key = _el_key()
@@ -208,6 +241,9 @@ def gen_audio(hnikud, fname):
     except urllib.error.HTTPError as e:
         body = e.read().decode("utf-8", "replace")[:200]
         print(f"  ⚠ ElevenLabs {e.code} для {hnikud}: {body}", file=sys.stderr)
+        if e.code in (401, 402, 429) or "quota" in body:
+            _EL_DISABLED = True
+            print("  ⚠ ElevenLabs недоступен — дальше озвучка голосом Carmit", file=sys.stderr)
         return ""
     except Exception as e:
         print(f"  ⚠ Audio failed {hnikud}: {e}", file=sys.stderr)
@@ -320,7 +356,9 @@ CREATE INDEX ix_cards_nid on cards (nid);
                 sound = f"[sound:{fname}]"
 
             flds = SEP.join([heb, rus, sound, translit])
-            guid = hashlib.md5(f"{deck_name}::{hnikud}".encode()).hexdigest()[:10]
+            # guid_key lets callers (e.g. conjugation decks) make the id unique when two
+            # cards share the same Hebrew form; default stays the word itself
+            guid = hashlib.md5(f"{deck_name}::{e.get('guid_key', hnikud)}".encode()).hexdigest()[:10]
             csum = checksum(heb)
 
             c.execute("INSERT OR IGNORE INTO notes VALUES (?,?,?,?,?,?,?,?,?,?,?)",
@@ -438,6 +476,8 @@ def main():
                 failed.append(strip_nikud(hnikud))
     if failed:
         print(f"\n⚠ Без озвучки ({len(failed)}): {', '.join(failed)}")
+    if FALLBACK_USED:
+        print(f"\n⚠ Озвучено запасным голосом Carmit ({len(FALLBACK_USED)}): {', '.join(FALLBACK_USED)}")
 
     # Build one .apkg per section
     print("\nСоздаю файлы...")
