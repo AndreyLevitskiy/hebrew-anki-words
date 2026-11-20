@@ -1,6 +1,6 @@
 ---
 name: hebrew-conjugation-decks
-description: Build or rebuild Hebrew verb conjugation decks (Спряжения::<binyan>) for SmartCards+ from the verbs in hebrew_words.json, with forms from Pealim. Use when the user asks for conjugation cards for a whole binyan, for old verbs, or to re-voice a conjugation deck.
+description: Build or rebuild Hebrew verb conjugation decks (Спряжения by binyan) for SmartCards+ from the verbs in hebrew_words.json, with forms from Pealim. Use when the user asks for conjugation cards for a whole binyan, for old verbs, or to re-voice a conjugation deck.
 ---
 
 # Hebrew Conjugation Decks
