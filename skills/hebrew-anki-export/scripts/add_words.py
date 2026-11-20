@@ -367,6 +367,7 @@ def main():
         governs      = w.get("governs", "").strip()       # preposition, e.g. "(מ...)" — shown next to the infinitive
         example      = w.get("example", "").strip()       # Hebrew sample sentence / idiom
         example_ru   = w.get("example_ru", "").strip()    # its Russian translation
+        example_nikud = w.get("example_nikud", "").strip()  # example WITH nikud — voiced instead of the word
 
         # "hebrew" = clean form (no nikud) — used for card and JSON storage
         # "hebrew_nikud" = form with vowel marks — used ONLY for audio and transliteration
@@ -396,11 +397,16 @@ def main():
             rec["example"] = example
             if example_ru:
                 rec["example_ru"] = example_ru
+            if example_nikud:
+                rec["example_nikud"] = example_nikud
         db[sec].append(rec)
         existing.setdefault(sec, set()).add(hclean)
         new_by_section[sec].append({
             "hebrew": hclean, "hebrew_card": heb_card,
-            "hebrew_nikud": hnikud, "russian": russian, "transliteration": comment
+            "hebrew_nikud": hnikud, "russian": russian, "transliteration": comment,
+            # the card has one audio player: voice the example sentence when we have it
+            # with nikud, otherwise the word itself
+            "audio_text": example_nikud or hnikud
         })
         print(f"  + {hclean} ({hnikud}) [{translit}] → {sec}")
 
@@ -425,9 +431,9 @@ def main():
         for e in entries:
             hnikud = e["hebrew_nikud"]
             fname  = strip_nikud(hnikud).replace("/", "_")
-            e["audio_path"] = gen_audio(hnikud, fname)
+            e["audio_path"] = gen_audio(e["audio_text"], fname)
             mark = "🔊" if e["audio_path"] else "✗ "
-            print(f"  {mark} {hnikud} [{e['transliteration']}]")
+            print(f"  {mark} {e['audio_text']}")
             if not e["audio_path"]:
                 failed.append(strip_nikud(hnikud))
     if failed:
